@@ -20,13 +20,21 @@ import com.hana4.ggumtle.model.entity.bucket.BucketHowTo;
 import com.hana4.ggumtle.model.entity.bucket.BucketStatus;
 import com.hana4.ggumtle.model.entity.bucket.BucketTagType;
 import com.hana4.ggumtle.model.entity.dreamAccount.DreamAccount;
+import com.hana4.ggumtle.model.entity.group.Group;
+import com.hana4.ggumtle.model.entity.group.GroupCategory;
+import com.hana4.ggumtle.model.entity.groupMember.GroupMember;
 import com.hana4.ggumtle.model.entity.portfolioTemplate.PortfolioTemplate;
+import com.hana4.ggumtle.model.entity.post.Post;
+import com.hana4.ggumtle.model.entity.post.PostType;
 import com.hana4.ggumtle.model.entity.user.User;
 import com.hana4.ggumtle.model.entity.user.UserRole;
 import com.hana4.ggumtle.repository.AdvertisementRepository;
 import com.hana4.ggumtle.repository.BucketRepository;
 import com.hana4.ggumtle.repository.DreamAccountRepository;
+import com.hana4.ggumtle.repository.GroupMemberRepository;
+import com.hana4.ggumtle.repository.GroupRepository;
 import com.hana4.ggumtle.repository.PortfolioTemplateRepository;
+import com.hana4.ggumtle.repository.PostRepository;
 import com.hana4.ggumtle.repository.UserRepository;
 
 import jakarta.transaction.Transactional;
@@ -41,10 +49,67 @@ public class InitialDataLoader implements ApplicationRunner {
 	private final UserRepository userRepository;
 	private final DreamAccountRepository dreamAccountRepository;
 	private final BCryptPasswordEncoder passwordEncoder;
+	private final PostRepository postRepository;
+	private final GroupRepository groupRepository;
+	private final GroupMemberRepository groupMemberRepository;
 
 	@Override
 	@Transactional
 	public void run(ApplicationArguments args) throws Exception {
+		User recommendUser;
+		if (userRepository.count() == 0) {
+			recommendUser = User.builder()
+				.password(passwordEncoder.encode("recommendedUser123!"))
+				.name("추천버킷관리자")
+				.permission((short)3)
+				.role(UserRole.USER)
+				.nickname("꿈틀추천")
+				.birthDate(LocalDateTime.of(1990, 1, 1, 0, 0, 0, 0))
+				.gender("m")
+				.tel("123456789")
+				.build();
+			recommendUser = userRepository.save(recommendUser);
+		} else {
+			recommendUser = userRepository.findFirstByOrderByIdAsc();
+		}
+
+		User savedUser = userRepository.findUserByTel(recommendUser.getTel())
+			.orElseThrow(() -> new RuntimeException("Failed to retrieve saved user"));
+
+		Group group;
+
+		if (groupRepository.count() == 0) {
+			group = Group.builder()
+				.name("테스트그룹")
+				.description("테스트용 그룹입니다.")
+				.category(GroupCategory.TRAVEL)
+				.build();
+			groupRepository.save(group);
+		} else {
+			group = groupRepository.findFirstByOrderByIdAsc();
+		}
+
+		if (groupMemberRepository.count() == 0 || groupMemberRepository.findById(1L).orElse(null).getGroup() != group) {
+			GroupMember groupMember = GroupMember.builder()
+				.group(group)
+				.user(recommendUser)
+				.build();
+			groupMemberRepository.save(groupMember);
+		}
+
+		if (postRepository.count() == 0) {
+			List<Post> posts = new ArrayList<>();
+			for (int i = 0; i < 200000; i++) {
+				posts.add(Post.builder()
+					.user(recommendUser)
+					.group(group)
+					.content("test용 글입니다. 번호는 " + i)
+					.postType(PostType.POST)
+					.build());
+			}
+			postRepository.saveAll(posts);
+		}
+
 		if (portfolioTemplateRepository.count() == 0) {
 			PortfolioTemplate conservative = PortfolioTemplate.builder()
 				.name("CONSERVATIVE")
@@ -200,20 +265,6 @@ public class InitialDataLoader implements ApplicationRunner {
 		}
 
 		if (bucketRepository.findByIsRecommendedTrue().isEmpty()) {
-			User recommendUser = User.builder()
-				.password(passwordEncoder.encode("recommendedUser123!"))
-				.name("추천버킷관리자")
-				.permission((short)3)
-				.role(UserRole.USER)
-				.nickname("꿈틀추천")
-				.birthDate(LocalDateTime.of(1990, 1, 1, 0, 0, 0, 0))
-				.gender("m")
-				.tel("123456789")
-				.build();
-			recommendUser = userRepository.save(recommendUser);
-
-			User savedUser = userRepository.findUserByTel(recommendUser.getTel())
-				.orElseThrow(() -> new RuntimeException("Failed to retrieve saved user"));
 
 			DreamAccount dreamAccount = DreamAccount.builder()
 				.user(savedUser)

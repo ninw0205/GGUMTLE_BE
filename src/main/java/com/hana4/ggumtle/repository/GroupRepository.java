@@ -35,4 +35,6 @@ public interface GroupRepository extends JpaRepository<Group, Long> {
 		@Param("search") String search,
 		Pageable pageable
 	);
+
+	Group findFirstByOrderByIdAsc();
 }
