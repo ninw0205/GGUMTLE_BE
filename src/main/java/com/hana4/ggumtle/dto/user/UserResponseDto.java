@@ -1,5 +1,6 @@
 package com.hana4.ggumtle.dto.user;
 
+import java.io.Serializable;
 import java.time.LocalDateTime;
 
 import com.hana4.ggumtle.model.entity.user.User;
@@ -94,7 +95,7 @@ public class UserResponseDto {
 	@NoArgsConstructor(access = AccessLevel.PROTECTED)
 	@AllArgsConstructor
 	@Builder
-	public static class BriefInfo {
+	public static class BriefInfo implements Serializable {
 		private String name;
 		private String profileImageUrl;
 		private String nickname;

@@ -1,11 +1,13 @@
 package com.hana4.ggumtle.service;
 
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
@@ -41,6 +43,7 @@ public class PostService {
 	private final GoalPortfolioService goalPortfolioService;
 	private final MyDataService myDataService;
 	private final ObjectMapper objectMapper;
+	private final RedisService redisService;
 
 	private boolean checkUserWithPost(User user, Post post) {
 		return !user.getId().equals(post.getUser().getId());
@@ -114,36 +117,83 @@ public class PostService {
 			});
 	}
 
+	// Page<Post> 대신 List<Post>와 Total Count를 캐싱하도록 로직 변경
 	public Page<PostResponseDto.PostInfo> getPopularPostsByPage(Pageable pageable, User user,
 		GroupCategory groupCategory, String search) {
-		if (groupCategory != null && search != null) {
-			return postRepository.findAllPostsGroupedByGroupCategoryWithSearchParam(pageable, groupCategory, search)
-				.map(post -> PostResponseDto.PostInfo.from(post, isAuthorLike(post.getId(), user.getId()),
-					post.getUser().getId().equals(user.getId()), countLikeByPostId(post.getId()),
-					commentService.countCommentByPostId(post.getId())));
+
+		// Redis 키 생성
+		String contentKey = "popularPosts:content:" + buildContentCacheKey(pageable, groupCategory, search);
+		String totalCountKey = "popularPosts:totalCount:" + buildTotalCountCacheKey(groupCategory, search);
+
+		// 캐시에서 Content List 및 Total Count 조회
+		List<Post> cachedContent = redisService.getValuesFromKey(contentKey);
+		Object cachedTotalObject = redisService.getValuesFromKey(totalCountKey);
+
+		// Total Count가 Long 타입이 아닌 경우를 대비
+		Long totalCount = (cachedTotalObject instanceof Long) ? (Long) cachedTotalObject : 0;
+		System.out.println(cachedContent + " " + totalCount);
+
+		if (cachedContent != null) {
+			// 캐시 히트: PageImpl 수동 생성 후 DTO 변환
+			Page<Post> cachedPage = new PageImpl<>(cachedContent, pageable, totalCount);
+			return convertPageToDto(cachedPage, user);
 		}
 
-		if (groupCategory != null) {
-			return postRepository.findAllPostsGroupedByGroupCategory(pageable, groupCategory)
-				.map(post -> PostResponseDto.PostInfo.from(post, isAuthorLike(post.getId(), user.getId()),
-					post.getUser().getId().equals(user.getId()), countLikeByPostId(post.getId()),
-					commentService.countCommentByPostId(post.getId())));
-		}
+		// 캐시 미스: DB에서 조회
+		Page<Post> postPage = findPostsFromRepository(pageable, groupCategory, search);
 
-		if (search != null) {
-			return postRepository.findAllPostsWithSearchParam(pageable, search)
-				.map(post -> PostResponseDto.PostInfo.from(post, isAuthorLike(post.getId(), user.getId()),
-					post.getUser().getId().equals(user.getId()), countLikeByPostId(post.getId()),
-					commentService.countCommentByPostId(post.getId())));
-		}
+		// Redis에 저장
+		List<Post> contentToCache = postPage.getContent();
+		System.out.println(postPage.getContent());
+		long totalCountToCache = postPage.getTotalElements(); // long을 캐싱해도 Redis에서 Long으로 복원됩니다.
 
-		return postRepository.findAllPostsWithLikeCount(pageable)
-			.map(post -> {
-				boolean isLiked = isAuthorLike(post.getId(), user.getId());
-				boolean isMine = post.getUser().getId().equals(user.getId());
-				return PostResponseDto.PostInfo.from(post, isLiked, isMine, countLikeByPostId(post.getId()),
-					commentService.countCommentByPostId(post.getId()));
-			});
+		redisService.setKeyAndValue(contentKey, contentToCache, Duration.ofMinutes(5));
+		redisService.setKeyAndValue(totalCountKey, totalCountToCache, Duration.ofMinutes(5));
+
+		// DTO 변환 및 반환
+		return convertPageToDto(postPage, user);
+	}
+
+	private String buildContentCacheKey(Pageable pageable, GroupCategory groupCategory, String search) {
+		return String.format("%d:%d:%s:%s:%s",
+			pageable.getPageNumber(),
+			pageable.getPageSize(),
+			pageable.getSort().toString(),
+			groupCategory != null ? groupCategory.name() : "none",
+			search != null ? search : "none");
+	}
+
+	private String buildTotalCountCacheKey(GroupCategory groupCategory, String search) {
+		return String.format("%s:%s",
+			groupCategory != null ? groupCategory.name() : "none",
+			search != null ? search : "none");
+	}
+
+	// DB 조회 로직 (기존 Service 로직에서 분리)
+	private Page<Post> findPostsFromRepository(Pageable pageable, GroupCategory groupCategory, String search) {
+			if (groupCategory != null && search != null) {
+				return postRepository.findAllPostsGroupedByGroupCategoryWithSearchParam(pageable, groupCategory, search);
+			}
+
+			if (groupCategory != null) {
+				return postRepository.findAllPostsGroupedByGroupCategory(pageable, groupCategory);
+			}
+
+			if (search != null) {
+				return postRepository.findAllPostsWithSearchParam(pageable, search);
+			}
+
+			return postRepository.findAllPostsWithLikeCount(pageable);
+	}
+
+	// 사용자별 정보 추가 로직 (재사용을 위해 별도 메서드로 분리)
+	private Page<PostResponseDto.PostInfo> convertPageToDto(Page<Post> postPage, User user) {
+		return postPage.map(post -> {
+			boolean isLiked = isAuthorLike(post.getId(), user.getId());
+			boolean isMine = post.getUser().getId().equals(user.getId());
+			return PostResponseDto.PostInfo.from(post, isLiked, isMine, countLikeByPostId(post.getId()),
+				commentService.countCommentByPostId(post.getId()));
+		});
 	}
 
 	public PostResponseDto.PostInfo updatePost(Long groupId, Long postId, PostRequestDto.Write postRequestDto,
@@ -161,7 +211,10 @@ public class PostService {
 		post.setContent(postRequestDto.getContent());
 		post.setSnapshot(makeSnapShot(postRequestDto, user));
 
-		return PostResponseDto.PostInfo.from(postRepository.save(post), isAuthorLike(post.getId(), user.getId()), true,
+		Post savedPost = postRepository.save(post);
+		redisService.deleteKeysByPrefix("popularPosts:");
+
+		return PostResponseDto.PostInfo.from(savedPost, isAuthorLike(post.getId(), user.getId()), true,
 			countLikeByPostId(postId), commentService.countCommentByPostId(postId));
 	}
 
@@ -177,6 +230,7 @@ public class PostService {
 		}
 
 		postRepository.deleteById(postId);
+		redisService.deleteKeysByPrefix("popularPosts:");
 	}
 
 	public Post getPostById(Long postId) {

@@ -1,5 +1,7 @@
 package com.hana4.ggumtle.dto.post;
 
+import java.io.Serializable;
+
 import com.hana4.ggumtle.dto.BaseDto;
 import com.hana4.ggumtle.dto.user.UserResponseDto;
 import com.hana4.ggumtle.model.entity.group.GroupCategory;
@@ -25,7 +27,7 @@ public class PostResponseDto {
 	@AllArgsConstructor
 	@ToString
 	@SuperBuilder
-	public static class PostInfo extends BaseDto {
+	public static class PostInfo extends BaseDto implements Serializable {
 		@Schema(description = "게시물 ID", example = "1234")
 		private Long id;
 
