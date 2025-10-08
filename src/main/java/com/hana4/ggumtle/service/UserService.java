@@ -16,6 +16,7 @@ import com.hana4.ggumtle.repository.RefreshTokenRepository;
 import com.hana4.ggumtle.repository.TelCodeValidationRepository;
 import com.hana4.ggumtle.repository.UserRepository;
 import com.hana4.ggumtle.security.provider.JwtProvider;
+import com.hana4.ggumtle.service.sms.SmsService;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

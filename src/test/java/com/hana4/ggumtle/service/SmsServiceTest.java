@@ -17,6 +17,9 @@ import net.nurigo.sdk.message.request.SingleMessageSendingRequest;
 import net.nurigo.sdk.message.response.SingleMessageSentResponse;
 import net.nurigo.sdk.message.service.DefaultMessageService;
 
+import com.hana4.ggumtle.service.sms.RealSmsService;
+import com.hana4.ggumtle.service.sms.SmsService;
+
 class SmsServiceTest {
 
 	@Mock
@@ -27,7 +30,7 @@ class SmsServiceTest {
 	@BeforeEach
 	void setUp() {
 		MockitoAnnotations.openMocks(this);
-		smsService = new SmsService("test-api-key", "test-api-secret");
+		smsService = new RealSmsService("test-api-key", "test-api-secret");
 		ReflectionTestUtils.setField(smsService, "messageService", messageService);
 		ReflectionTestUtils.setField(smsService, "sender", "testSender");
 	}

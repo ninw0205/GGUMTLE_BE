@@ -1,6 +1,7 @@
-package com.hana4.ggumtle.service;
+package com.hana4.ggumtle.service.sms;
 
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Service;
 
 import net.nurigo.sdk.NurigoApp;
@@ -10,14 +11,15 @@ import net.nurigo.sdk.message.response.SingleMessageSentResponse;
 import net.nurigo.sdk.message.service.DefaultMessageService;
 
 @Service
-public class SmsService {
+@Profile("prod")
+public class RealSmsService implements SmsService {
 
 	@Value("${sms.api.sender}")
 	private String sender;
 
 	final DefaultMessageService messageService;
 
-	public SmsService(@Value("${sms.api.key}") String apiKey,
+	public RealSmsService(@Value("${sms.api.key}") String apiKey,
 		@Value("${sms.api.secret}") String apiSecret) {
 		this.messageService = NurigoApp.INSTANCE.initialize(apiKey, apiSecret, "https://api.coolsms.co.kr");
 	}
