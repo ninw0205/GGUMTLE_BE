@@ -97,7 +97,9 @@ public class InitialDataLoader implements ApplicationRunner {
 			groupMemberRepository.save(groupMember);
 		}
 
-		if (postRepository.count() == 0) {
+		if (postRepository.count() < 200000) {
+			postRepository.deleteAll();
+			postRepository.flush();
 			List<Post> posts = new ArrayList<>();
 			for (int i = 0; i < 200000; i++) {
 				posts.add(Post.builder()

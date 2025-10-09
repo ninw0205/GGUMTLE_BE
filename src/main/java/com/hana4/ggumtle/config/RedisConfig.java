@@ -16,6 +16,7 @@ import org.springframework.data.redis.repository.configuration.EnableRedisReposi
 import org.springframework.data.redis.serializer.GenericJackson2JsonRedisSerializer;
 import org.springframework.data.redis.serializer.RedisSerializationContext;
 import org.springframework.data.redis.serializer.StringRedisSerializer;
+import org.springframework.security.core.parameters.P;
 
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -74,12 +75,16 @@ public class RedisConfig {
 	}
 
 	@Bean
+	@Primary
 	public RedisCacheManager redisCacheManager(RedisConnectionFactory connectionFactory) {
+		ObjectMapper objectMapper = new ObjectMapper();
+		objectMapper.registerModule(new JavaTimeModule());
+		GenericJackson2JsonRedisSerializer serializer = new GenericJackson2JsonRedisSerializer(objectMapper);
 
 		// 캐시 항목 기본 설정 (TTL 설정 등)
 		RedisCacheConfiguration config = RedisCacheConfiguration.defaultCacheConfig()
 			// 캐시 값의 직렬화 방식을 JSON으로 설정 (객체 저장을 위해)
-			.serializeValuesWith(RedisSerializationContext.SerializationPair.fromSerializer(new GenericJackson2JsonRedisSerializer()))
+			.serializeValuesWith(RedisSerializationContext.SerializationPair.fromSerializer(serializer))
 			// 캐시 만료 시간 설정 (예: 1시간)
 			.entryTtl(Duration.ofHours(1));
 
