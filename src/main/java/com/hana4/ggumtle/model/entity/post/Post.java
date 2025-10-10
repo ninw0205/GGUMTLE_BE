@@ -53,6 +53,9 @@ public class Post extends BaseEntity {
 	@Column(nullable = false)
 	private String content;
 
+	@Column(nullable = false)
+	private Long likeCount;
+
 	@Enumerated(EnumType.STRING)
 	@Column(nullable = false)
 	private PostType postType;

@@ -180,7 +180,7 @@ public class PostController {
 			)))
 	})
 	@PostMapping("/group/{groupId}/post/{postId}/like")
-	public ResponseEntity<CustomApiResponse<PostLikeResponseDto.Add>> likePost(@PathVariable Long groupId,
+	public ResponseEntity<CustomApiResponse<Boolean>> likePost(@PathVariable Long groupId,
 		@PathVariable Long postId, @AuthenticationPrincipal CustomUserDetails customUserDetails) {
 		return ResponseEntity.ok(
 			CustomApiResponse.success(postService.addLike(groupId, postId, customUserDetails.getUser())));
@@ -196,10 +196,9 @@ public class PostController {
 			}))
 	})
 	@DeleteMapping("/group/{groupId}/post/{postId}/dislike")
-	public ResponseEntity<CustomApiResponse<PostLikeResponseDto.Add>> dislikePost(@PathVariable Long groupId,
+	public ResponseEntity<CustomApiResponse<Boolean>> dislikePost(@PathVariable Long groupId,
 		@PathVariable Long postId, @AuthenticationPrincipal CustomUserDetails customUserDetails) {
-		postService.removeLike(groupId, postId, customUserDetails.getUser());
-		return ResponseEntity.ok(CustomApiResponse.success());
+		return ResponseEntity.ok(CustomApiResponse.success(postService.removeLike(groupId, postId, customUserDetails.getUser())));
 	}
 
 	@Operation(summary = "새소식 공유", description = "새 소식(버켓리스트 완료)을 공유합니다.")
